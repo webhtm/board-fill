@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Board Fill - Creative Edition</title>
+    <style>
+        :root {
+            --board-size: 5;
+            --cell-size: clamp(40px, 12vw, 80px);
+            --gap: 3px;
+            --bg-color: #0f172a;
+            --cell-bg: #1e293b;
+            --cell-hover: rgba(56, 189, 248, 0.2);
+            --player-color: #3b82f6;
+            --bot-color: #ef4444;
+            --preview-color: rgba(74, 222, 128, 0.7);
+            --preview-invalid: rgba(239, 68, 68, 0.5);
+            --accent-color: #64ffda;
+            --modal-bg: #1e293be6;
+            --input-bg: #2b3a50;
+            --danger-color: #ef4444;
+            --danger-hover: #f87171;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-x: hidden; /* Allow vertical scroll, hide horizontal */
+            overflow-y: auto;
+        }
+
+        /* Class to disable scroll when modal is open */
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            text-shadow: 0 0 15px var(--accent-color);
+            margin: 0 0 15px 0;
+            text-align: center;
+        }
+
+        .score-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff; /* For the pipe */
+            margin-bottom: 15px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .score-container.visible {
+            opacity: 1;
+        }
+        
+        #player-score {
+            color: var(--player-color);
+            font-size: 1.2em;
+        }
+        
+        #bot-score {
+            color: var(--danger-color);
+            font-size: 1.2em;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.3s ease;
+        }
+        
+        .controls.visible {
+            opacity: 1;
+        }
+
+        select, button {
+            padding: 10px 15px;
+            background: var(--cell-bg);
+            color: #ffffff;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        button:hover {
+            background-color: #334155;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        button.active, button:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--bg-color), 0 0 0 5px var(--accent-color);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        button.danger {
+            background-color: #991b1b;
+        }
+        button.danger:hover {
+            background-color: var(--danger-color);
+        }
+        
+        #restartBtn {
+            background-color: var(--player-color);
+        }
+        #restartBtn:hover {
+            background-color: #2563eb;
+        }
+        
+        #status {
+            font-size: 1.1em;
+            font-weight: 500;
+            min-height: 1.2em;
+            margin-bottom: 20px;
+            text-align: center;
+            color: var(--accent-color);
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.3s ease;
+        }
+        
+        #status.visible {
+            opacity: 1;
+        }
+
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            width: 100%;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.3s ease;
+        }
+        
+        .game-container.visible {
+            opacity: 1;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(var(--board-size), var(--cell-size));
+            grid-template-rows: repeat(var(--board-size), var(--cell-size));
+            gap: var(--gap);
+            background: #000;
+            border: 5px solid var(--cell-bg);
+            border-radius: 10px;
+            padding: var(--gap);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            background-color: var(--cell-bg);
+            border-radius: 4px;
+            transition: background-color 0.15s ease;
+        }
+        
+        .cell:hover {
+            background-color: var(--cell-hover);
+        }
+
+        .cell.player {
+            background-color: var(--player-color);
+            box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.3);
+            animation: popIn 0.3s ease;
+        }
+
+        .cell.bot {
+            background-color: var(--bot-color);
+            box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.3);
+            animation: popIn 0.3s ease;
+        }
+
+        .cell.preview {
+            background-color: var(--preview-color);
+            cursor: pointer;
+        }
+        
+        .cell.invalid {
+            background-color: var(--preview-invalid);
+            cursor: not-allowed;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.7); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .shapes-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .shapes-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            max-height: 40vh;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .shape-preview {
+            display: grid;
+            border: 2px solid #334155;
+            background: var(--cell-bg);
+            border-radius: 8px;
+            padding: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 80px;
+            height: 80px;
+            align-content: center;
+            justify-content: center;
+        }
+        
+        .shape-preview:hover {
+            border-color: var(--accent-color);
+            transform: scale(1.05);
+        }
+        
+        .shape-preview.selected {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-color);
+            background: #334155;
+        }
+        
+        .shape-cell {
+            width: 15px;
+            height: 15px;
+            border-radius: 2px;
+        }
+        
+        .shape-cell.filled {
+            background-color: var(--player-color);
+        }
+        
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .shapes-grid {
+                grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                width: 90vw;
+            }
+            .shape-preview {
+                width: 60px;
+                height: 60px;
+            }
+            .shape-cell {
+                width: 12px;
+                height: 12px;
+            }
+            .controls {
+                flex-direction: column;
+                width: 90%;
+            }
+            select, button {
+                width: 100%;
+            }
+        }
+        
+        /* --- Modal Styles --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0s 0.3s;
+        }
+        
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-content {
+            background: var(--modal-bg);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .modal-content h2 {
+            color: var(--accent-color);
+            margin-top: 0;
+            text-align: center;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .modal-buttons button {
+            padding: 12px 20px;
+            font-size: 1.1em;
+        }
+
+        .custom-game-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .custom-game-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--cell-bg);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .custom-game-item:hover {
+            background-color: #334155;
+        }
+        
+        .custom-game-item span {
+            font-size: 1.2em;
+            font-weight: 500;
+            pointer-events: none; /* Make text non-clickable */
+        }
+        
+        .custom-game-item button {
+            padding: 8px 12px;
+            margin-left: 10px;
+            z-index: 2; /* Ensure button is on top */
+        }
+
+        /* --- Shape Creator --- */
+        #shape-designer {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(3, 50px);
+            gap: 5px;
+            background: #000;
+            border: 2px solid #334155;
+            padding: 5px;
+            border-radius: 8px;
+            width: max-content;
+            margin: 20px auto;
+            cursor: cell;
+        }
+        
+        .designer-cell {
+            width: 50px;
+            height: 50px;
+            background: var(--cell-bg);
+            border-radius: 4px;
+            transition: background-color 0.1s ease;
+        }
+        
+        .designer-cell.filled {
+            background: var(--player-color);
+        }
+        
+        .designer-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        #current-shapes-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            min-height: 50px;
+        }
+        
+        .custom-shape-item {
+            position: relative;
+            padding: 5px;
+        }
+        
+        .delete-shape-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            line-height: 28px;
+            text-align: center;
+            border-radius: 50%;
+            background-color: var(--danger-color);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            border: 2px solid var(--bg-color);
+            z-index: 10;
+        }
+        .delete-shape-btn:hover {
+            background-color: var(--danger-hover);
+            transform: scale(1.1);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            background: var(--input-bg);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #fff;
+            box-sizing: border-box; /* Important */
+            margin-bottom: 15px;
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        
+        .checkbox-container input {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Board Fill</h1>
+
+    <!-- Score Counter -->
+    <div class="score-container" id="score-container">
+        <span id="player-score">0</span>
+        <span>|</span>
+        <span id="bot-score">0</span>
+    </div>
+
+    <!-- Game UI -->
+    <div class="controls" id="game-controls">
+        <select id="difficulty">
+            <option value="easy">Easy Bot</option>
+            <option value="medium">Medium Bot</option>
+            <option value="hard">Hard Bot</option>
+        </select>
+        <button id="restartBtn" class="hidden">🔄 New Game</button>
+        <button id="mainMenuBtn">🏠 Main Menu</button>
+    </div>
+
+    <div id="status">Select difficulty and start!</div>
+
+    <div class="game-container" id="game-area">
+        <div id="game-board"></div>
+        <div class="shapes-container">
+            <button id="rotateBtn" disabled>↻ Rotate (R)</button>
+            <div class="shapes-grid" id="shapes-grid"></div>
+        </div>
+    </div>
+    
+    <!-- Modal 1: Main Menu -->
+    <div class="modal-overlay visible" id="mainMenuModal">
+        <div class="modal-content">
+            <h2>Main Menu</h2>
+            <div class="modal-buttons">
+                <button id="startStandardGameBtn">🚀 Play Standard Game</button>
+                <button id="openCustomGamesBtn">🛠️ Custom Games</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal 2: Custom Game List -->
+    <div class="modal-overlay" id="customGamesModal">
+        <div class="modal-content">
+            <h2>Custom Games</h2>
+            <div class="custom-game-list" id="customGameList">
+                <!-- Items will be populated by JS -->
+            </div>
+            <div class="modal-buttons">
+                <button id="openCreatorBtn">➕ Create New Custom Game</button>
+                <button class="modal-back-btn" data-target="mainMenuModal">⬅️ Back to Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Custom Game Creator -->
+    <div class="modal-overlay" id="creatorModal">
+        <div class="modal-content">
+            <h2>Create Custom Game</h2>
+            <input type="text" id="customGameName" placeholder="Enter game name...">
+            
+            <div class="checkbox-container">
+                <input type="checkbox" id="includeStandardShapes" checked>
+                <label for="includeStandardShapes">Include standard shapes</label>
+            </div>
+            
+            <h3>Shape Designer (3x3)</h3>
+            <div id="shape-designer"></div>
+            <div class="designer-controls">
+                <button id="addShapeBtn">Add Shape</button>
+                <button id="clearDesignerBtn">Clear Designer</button>
+            </div>
+            
+            <h3>Current Shapes</h3>
+            <div id="current-shapes-list"></div>
+            
+            <div class="modal-buttons">
+                <button id="saveGameBtn">✅ Save and Close</button>
+                <button class="modal-back-btn" data-target="customGamesModal">⬅️ Back (Discard)</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const BOARD_WIDTH = 5;
+        const BOARD_HEIGHT = 5;
+        const PLAYER_ID = 1;
+        const BOT_ID = 2;
+        
+        // Standard shapes
+        const STANDARD_SHAPES = [
+          { name: 'Diagonal-2', rotations: [ [[1, 0], [0, 1]], [[0, 1], [1, 0]] ]},
+          { name: '1x2', rotations: [ [[1, 1]], [[1], [1]] ] },
+          { name: '1x3', rotations: [ [[1, 1, 1]], [[1], [1], [1]] ] },
+          { name: 'L-3', rotations: [ [[1, 0], [1, 1]], [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[0, 1], [1, 1]] ] },
+          { name: '2x2', rotations: [ [[1, 1], [1, 1]] ] }
+        ];
+
+        let currentGameShapes = []; // This will hold shapes for the current game
+        let board = [];
+        let difficulty = 'easy';
+        let gameStarted = false;
+        let playerTurn = true;
+        let selectedShapeIndex = 0;
+        let currentRotation = 0;
+        let previewCells = [];
+        let playerScore = 0;
+        let botScore = 0;
+        
+        // --- IndexedDB ---
+        let db;
+        const DB_NAME = 'BoardFillDB';
+        const STORE_NAME = 'customGames';
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                
+                request.onupgradeneeded = (e) => {
+                    db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'name' });
+                    }
+                };
+                
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                
+                request.onerror = (e) => {
+                    console.error("IndexedDB error:", e.target.error);
+                    reject(e.target.error);
+                };
+            });
+        }
+        
+        function saveGame(game) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.put(game);
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function loadGames() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function deleteGame(gameName) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.delete(gameName);
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        // --- DOM Elements ---
+        const boardEl = document.getElementById('game-board');
+        const shapesGridEl = document.getElementById('shapes-grid');
+        const statusEl = document.getElementById('status');
+        const restartBtn = document.getElementById('restartBtn');
+        const rotateBtn = document.getElementById('rotateBtn');
+        const difficultySelect = document.getElementById('difficulty');
+        const mainMenuBtn = document.getElementById('mainMenuBtn');
+        
+        // Score
+        const scoreContainerEl = document.getElementById('score-container');
+        const playerScoreEl = document.getElementById('player-score');
+        const botScoreEl = document.getElementById('bot-score');
+        
+        // Modals
+        const allModals = document.querySelectorAll('.modal-overlay');
+        const mainMenuModal = document.getElementById('mainMenuModal');
+        const customGamesModal = document.getElementById('customGamesModal');
+        const creatorModal = document.getElementById('creatorModal');
+        
+        // Game UI Containers
+        const gameControlsEl = document.getElementById('game-controls');
+        const gameAreaEl = document.getElementById('game-area');
+        
+        // --- Shape Creator ---
+        const designerGridEl = document.getElementById('shape-designer');
+        const currentShapesListEl = document.getElementById('current-shapes-list');
+        const customGameNameInput = document.getElementById('customGameName');
+        const includeStandardShapesCheckbox = document.getElementById('includeStandardShapes');
+        let designerGrid = Array.from({ length: 3 }, () => Array(3).fill(0));
+        let creatorShapes = [];
+        let isDrawing = false;
+
+
+        async function init() {
+            await initDB();
+            createBoard(); // Create in background
+            
+            // --- Modal/Menu Listeners ---
+            document.getElementById('startStandardGameBtn').addEventListener('click', startStandardGame);
+            document.getElementById('openCustomGamesBtn').addEventListener('click', showCustomGamesList);
+            document.getElementById('openCreatorBtn').addEventListener('click', showCreatorModal);
+            mainMenuBtn.addEventListener('click', showMainMenu);
+            
+            document.querySelectorAll('.modal-back-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetModalId = btn.dataset.target;
+                    showModal(targetModalId, true);
+                });
+            });
+
+            // --- Game Listeners ---
+            restartBtn.addEventListener('click', restartCurrentGame);
+            rotateBtn.addEventListener('click', rotateSelectedShape);
+            document.addEventListener('keydown', (e) => {
+                if ((e.key === 'r' || e.key === 'R') && gameStarted && playerTurn) {
+                    rotateSelectedShape();
+                }
+            });
+            
+            // --- Creator Listeners ---
+            initDesignerGrid();
+            document.getElementById('addShapeBtn').addEventListener('click', addShapeFromDesigner);
+            document.getElementById('clearDesignerBtn').addEventListener('click', clearDesigner);
+            document.getElementById('saveGameBtn').addEventListener('click', saveCustomGame);
+            
+            updateScoreDisplay(); // Init score display
+        }
+        
+        // --- Modal & UI Flow ---
+        
+        function showModal(modalId, isBack = false) {
+            allModals.forEach(modal => modal.classList.remove('visible'));
+            if (modalId) {
+                document.getElementById(modalId).classList.add('visible');
+                document.body.classList.add('modal-open'); // Disable body scroll
+            } else {
+                document.body.classList.remove('modal-open'); // Enable body scroll
+            }
+            
+            // If hiding all modals (e.g., starting game)
+            if (!modalId) {
+                gameControlsEl.classList.add('visible');
+                gameAreaEl.classList.add('visible');
+                statusEl.classList.add('visible');
+                scoreContainerEl.classList.add('visible'); // Show score
+            } else {
+                gameControlsEl.classList.remove('visible');
+                gameAreaEl.classList.remove('visible');
+                statusEl.classList.remove('visible');
+                scoreContainerEl.classList.remove('visible'); // Hide score
+            }
+            
+            // Reset creator if opening it fresh
+            if (modalId === 'creatorModal' && !isBack) {
+                customGameNameInput.value = '';
+                includeStandardShapesCheckbox.checked = true;
+                creatorShapes = [];
+                currentShapesListEl.innerHTML = '';
+                clearDesigner();
+            }
+            // Refresh list if opening custom games
+            if (modalId === 'customGamesModal') {
+                populateCustomGamesList();
+            }
+        }
+        
+        function showMainMenu() {
+            gameStarted = false;
+            showModal('mainMenuModal');
+            restartBtn.classList.add('hidden');
+            
+            // Reset score when returning to main menu
+            playerScore = 0;
+            botScore = 0;
+            updateScoreDisplay();
+        }
+
+        async function showCustomGamesList() {
+            await populateCustomGamesList();
+            showModal('customGamesModal');
+        }
+        
+        async function populateCustomGamesList() {
+            const games = await loadGames();
+            const listEl = document.getElementById('customGameList');
+            listEl.innerHTML = '';
+            if (games.length === 0) {
+                listEl.innerHTML = '<p>No custom games found. Create one!</p>';
+                return;
+            }
+            
+            games.forEach(game => {
+                const itemEl = document.createElement('div');
+                itemEl.classList.add('custom-game-item');
+                itemEl.addEventListener('click', () => startCustomGame(game)); // Click to play
+                
+                const nameEl = document.createElement('span');
+                nameEl.textContent = `${game.name} (${game.shapes.length} shapes)`;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.classList.add('danger');
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation(); // Stop click from triggering play
+                    if (confirm(`Are you sure you want to delete "${game.name}"?`)) {
+                        await deleteGame(game.name);
+                        await populateCustomGamesList();
+                    }
+                });
+                
+                itemEl.appendChild(nameEl);
+                itemEl.appendChild(deleteBtn);
+                listEl.appendChild(itemEl);
+            });
+        }
+        
+        function showCreatorModal() {
+            showModal('creatorModal');
+        }
+        
+        // --- Game Setup ---
+        
+        function startStandardGame() {
+            currentGameShapes = STANDARD_SHAPES;
+            startGame();
+        }
+        
+        function startCustomGame(game) {
+            currentGameShapes = game.shapes;
+            if (currentGameShapes.length === 0) {
+                alert("This game has no shapes! Please add shapes to it first.");
+                return;
+            }
+            startGame();
+        }
+
+        function startGame() {
+            gameStarted = true;
+            playerTurn = true;
+            difficulty = difficultySelect.value;
+            createBoard();
+            createShapesUI();
+            
+            statusEl.textContent = "Your turn! Select a shape and place it.";
+            restartBtn.classList.remove('hidden');
+            rotateBtn.disabled = false;
+            
+            selectShape(0);
+            showModal(null); // Hide all modals
+        }
+        
+        function restartCurrentGame() {
+            // `currentGameShapes` is already set, just restart
+            startGame();
+        }
+
+        // --- Score ---
+        function updateScoreDisplay() {
+            playerScoreEl.textContent = playerScore;
+            botScoreEl.textContent = botScore;
+        }
+
+        // --- Shape Creator Logic ---
+
+        function initDesignerGrid() {
+            designerGridEl.innerHTML = '';
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('designer-cell');
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    designerGridEl.appendChild(cell);
+                }
+            }
+            
+            designerGridEl.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('designer-cell')) {
+                    isDrawing = true;
+                    toggleDesignerCell(e.target);
+                }
+            });
+            designerGridEl.addEventListener('mouseover', (e) => {
+                if (isDrawing && e.target.classList.contains('designer-cell')) {
+                    toggleDesignerCell(e.target);
+                }
+            });
+            // Stop drawing on mouseup or mouseleave anywhere
+            document.addEventListener('mouseup', () => isDrawing = false);
+            designerGridEl.addEventListener('mouseleave', () => isDrawing = false);
+        }
+        
+        function toggleDesignerCell(cell) {
+            const r = parseInt(cell.dataset.r);
+            const c = parseInt(cell.dataset.c);
+            designerGrid[r][c] = designerGrid[r][c] === 0 ? 1 : 0;
+            cell.classList.toggle('filled');
+        }
+        
+        function clearDesigner() {
+            designerGrid = Array.from({ length: 3 }, () => Array(3).fill(0));
+            designerGridEl.querySelectorAll('.designer-cell').forEach(cell => {
+                cell.classList.remove('filled');
+            });
+        }
+        
+        function addShapeFromDesigner() {
+            const normalized = normalizeShape(designerGrid);
+            if (normalized.length === 0) {
+                alert("Shape is empty!");
+                return;
+            }
+            
+            const rotations = generateRotations(normalized);
+            const newShape = {
+                name: `Custom ${creatorShapes.length + 1}`,
+                rotations: rotations
+            };
+            
+            creatorShapes.push(newShape);
+            
+            // Add visual preview to the list
+            const wrapper = document.createElement('div');
+            wrapper.classList.add('custom-shape-item');
+            
+            const shapePreview = createShapePreview(newShape, creatorShapes.length - 1);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.classList.add('delete-shape-btn');
+            deleteBtn.innerHTML = '&times;';
+            deleteBtn.addEventListener('click', () => {
+                // Remove from array and DOM
+                creatorShapes = creatorShapes.filter(s => s !== newShape);
+                wrapper.remove();
+            });
+            
+            wrapper.appendChild(shapePreview);
+            wrapper.appendChild(deleteBtn);
+            currentShapesListEl.appendChild(wrapper);
+            
+            clearDesigner();
+        }
+        
+        async function saveCustomGame() {
+            const name = customGameNameInput.value.trim();
+            if (!name) {
+                alert("Please enter a name for your game.");
+                return;
+            }
+            
+            const includeStandard = includeStandardShapesCheckbox.checked;
+            let finalShapes = [...creatorShapes];
+            
+            if (includeStandard) {
+                finalShapes = [...STANDARD_SHAPES, ...finalShapes];
+            }
+            
+            if (finalShapes.length === 0) {
+                alert("Please add at least one shape to your game (or include standard shapes).");
+                return;
+            }
+            
+            const newGame = {
+                name: name,
+                shapes: finalShapes
+            };
+            
+            try {
+                await saveGame(newGame);
+                alert(`Game "${name}" saved!`);
+                showModal('customGamesModal', true); // Go back
+            } catch (error) {
+                console.error("Failed to save game:", error);
+                alert(`Error saving game. A game with the name "${name}" might already exist.`);
+            }
+        }
+        
+        // --- Shape Transformation Logic ---
+        
+        function normalizeShape(grid) {
+            let minR = 3, minC = 3, maxR = -1, maxC = -1;
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    if (grid[r][c] === 1) {
+                        if (r < minR) minR = r;
+                        if (c < minC) minC = c;
+                        if (r > maxR) maxR = r;
+                        if (c > maxC) maxC = c;
+                    }
+                }
+            }
+            
+            if (maxR === -1) return []; // Empty shape
+
+            const height = maxR - minR + 1;
+            const width = maxC - minC + 1;
+            const normalized = Array.from({ length: height }, () => Array(width).fill(0));
+            
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    if (grid[r][c] === 1) {
+                        normalized[r - minR][c - minC] = 1;
+                    }
+                }
+            }
+            return normalized;
+        }
+
+        function rotateMatrix(matrix) {
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+            const newMatrix = Array.from({ length: cols }, () => Array(rows).fill(0));
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    newMatrix[c][rows - 1 - r] = matrix[r][c];
+                }
+            }
+            return newMatrix;
+        }
+
+        function flipMatrix(matrix) {
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+            const newMatrix = Array.from({ length: rows }, () => Array(cols).fill(0));
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    newMatrix[r][cols - 1 - c] = matrix[r][c];
+                }
+            }
+            return newMatrix;
+        }
+
+        function generateRotations(matrix) {
+            const uniqueRotations = new Set();
+            let current = matrix;
+            
+            // 4 rotations
+            for (let i = 0; i < 4; i++) {
+                uniqueRotations.add(JSON.stringify(current));
+                current = rotateMatrix(current);
+            }
+            
+            // Flipped + 4 rotations
+            current = flipMatrix(matrix);
+            for (let i = 0; i < 4; i++) {
+                uniqueRotations.add(JSON.stringify(current));
+                current = rotateMatrix(current);
+            }
+            
+            return Array.from(uniqueRotations).map(s => JSON.parse(s));
+        }
+
+        // --- Core Game Logic (Modified) ---
+
+        function createBoard() {
+            board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0));
+            boardEl.innerHTML = '';
+            for (let r = 0; r < BOARD_HEIGHT; r++) {
+                for (let c = 0; c < BOARD_WIDTH; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    cell.addEventListener('mouseenter', handleBoardHover);
+                    cell.addEventListener('mouseleave', clearPreview);
+                    cell.addEventListener('click', handleBoardClick);
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+        
+        function createShapesUI() {
+            shapesGridEl.innerHTML = '';
+            currentGameShapes.forEach((shape, index) => {
+                const shapeEl = createShapePreview(shape, index);
+                shapeEl.addEventListener('click', () => selectShape(index));
+                shapesGridEl.appendChild(shapeEl);
+            });
+        }
+        
+        function createShapePreview(shape, index) {
+            const shapeEl = document.createElement('div');
+            shapeEl.classList.add('shape-preview');
+            shapeEl.dataset.shapeId = index;
+            
+            const rotation = shape.rotations[0];
+            const gridRows = rotation.length;
+            const gridCols = rotation[0].length;
+            
+            const cellSize = (gridRows > 2 || gridCols > 2) ? '12px' : '15px';
+            
+            shapeEl.style.gridTemplateRows = `repeat(${gridRows}, ${cellSize})`;
+            shapeEl.style.gridTemplateColumns = `repeat(${gridCols}, ${cellSize})`;
+
+            for (let r = 0; r < gridRows; r++) {
+                for (let c = 0; c < gridCols; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('shape-cell');
+                    if (rotation[r][c] === 1) {
+                        cell.classList.add('filled');
+                    }
+                    shapeEl.appendChild(cell);
+                }
+            }
+            return shapeEl;
+        }
+        
+        function selectShape(index) {
+            if (!playerTurn || !gameStarted || index >= currentGameShapes.length) return;
+            
+            selectedShapeIndex = index;
+            currentRotation = 0;
+            
+            document.querySelectorAll('.shape-preview').forEach(el => {
+                el.classList.remove('selected');
+            });
+            const selectedEl = document.querySelector(`.shape-preview[data-shape-id="${index}"]`);
+            if (selectedEl) selectedEl.classList.add('selected');
+        }
+        
+        function rotateSelectedShape() {
+            if (!playerTurn || !gameStarted) return;
+            const rotations = currentGameShapes[selectedShapeIndex].rotations;
+            currentRotation = (currentRotation + 1) % rotations.length;
+            clearPreview();
+            const hoveredCell = document.querySelector('#game-board .cell:hover');
+            if (hoveredCell) {
+                handleBoardHover({ target: hoveredCell });
+            }
+        }
+        
+        function handleBoardHover(e) {
+            if (!playerTurn || !gameStarted) return;
+            clearPreview();
+            const r = parseInt(e.target.dataset.r);
+            const c = parseInt(e.target.dataset.c);
+            const shape = currentGameShapes[selectedShapeIndex].rotations[currentRotation];
+            const canPlace = canPlaceShape(shape, r, c);
+            
+            for (let i = 0; i < shape.length; i++) {
+                for (let j = 0; j < shape[i].length; j++) {
+                    if (shape[i][j] === 1) {
+                        const boardR = r + i;
+                        const boardC = c + j;
+                        if (boardR < BOARD_HEIGHT && boardC < BOARD_WIDTH) {
+                            const cell = boardEl.children[boardR * BOARD_WIDTH + boardC];
+                            if (cell) {
+                                cell.classList.add(canPlace ? 'preview' : 'invalid');
+                                previewCells.push(cell);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function clearPreview() {
+            previewCells.forEach(cell => {
+                cell.classList.remove('preview');
+                cell.classList.remove('invalid');
+            });
+            previewCells = [];
+        }
+
+        function handleBoardClick(e) {
+            if (!playerTurn || !gameStarted) return;
+            const r = parseInt(e.target.dataset.r);
+            const c = parseInt(e.target.dataset.c);
+            const shape = currentGameShapes[selectedShapeIndex].rotations[currentRotation];
+
+            if (canPlaceShape(shape, r, c)) {
+                placeShape(shape, r, c, PLAYER_ID);
+                drawBoard();
+                
+                if (!canAnyMove(BOT_ID)) {
+                    endGame("You win! The bot has no possible moves.");
+                } else {
+                    playerTurn = false;
+                    statusEl.textContent = "Bot is thinking...";
+                    rotateBtn.disabled = true;
+                    setTimeout(botMove, 1000);
+                }
+            }
+        }
+        
+        function canPlaceShape(shape, r, c, targetBoard = board) {
+            for (let i = 0; i < shape.length; i++) {
+                for (let j = 0; j < shape[i].length; j++) {
+                    if (shape[i][j] === 1) {
+                        const boardR = r + i;
+                        const boardC = c + j;
+                        if (boardR >= BOARD_HEIGHT || boardC >= BOARD_WIDTH) return false;
+                        if (targetBoard[boardR][boardC] !== 0) return false;
+                    }
+                }
+            }
+            return true;
+        }
+        
+        function placeShape(shape, r, c, playerId, targetBoard = board) {
+            for (let i = 0; i < shape.length; i++) {
+                for (let j = 0; j < shape[i].length; j++) {
+                    if (shape[i][j] === 1) {
+                        targetBoard[r + i][c + j] = playerId;
+                    }
+                }
+            }
+        }
+        
+        function drawBoard() {
+            for (let r = 0; r < BOARD_HEIGHT; r++) {
+                for (let c = 0; c < BOARD_WIDTH; c++) {
+                    const cell = boardEl.children[r * BOARD_WIDTH + c];
+                    cell.classList.remove('player', 'bot');
+                    if (board[r][c] === PLAYER_ID) {
+                        cell.classList.add('player');
+                    } else if (board[r][c] === BOT_ID) {
+                        cell.classList.add('bot');
+                    }
+                }
+            }
+        }
+        
+        function canAnyMove(playerId) {
+            return canAnyMoveOnBoard(board, playerId);
+        }
+        
+        function canAnyMoveOnBoard(targetBoard, playerId) {
+            for (const shape of currentGameShapes) {
+                for (const rotation of shape.rotations) {
+                    for (let r = 0; r < BOARD_HEIGHT; r++) {
+                        for (let c = 0; c < BOARD_WIDTH; c++) {
+                            if (canPlaceShape(rotation, r, c, targetBoard)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        
+        function botMove() {
+            if (!gameStarted) return;
+            const move = findBotMove();
+            
+            if (move) {
+                placeShape(move.shape, move.r, move.c, BOT_ID);
+                drawBoard();
+                
+                if (!canAnyMove(PLAYER_ID)) {
+                    endGame("Bot wins! You have no possible moves.");
+                } else {
+                    playerTurn = true;
+                    statusEl.textContent = "Your turn!";
+                    rotateBtn.disabled = false;
+                }
+            } else {
+                endGame("Bot has no moves. You win!");
+            }
+        }
+
+        function findBotMove() {
+            let possibleMoves = [];
+            for (let i = 0; i < currentGameShapes.length; i++) {
+                const shapeData = currentGameShapes[i];
+                for (let j = 0; j < shapeData.rotations.length; j++) {
+                    const rotation = shapeData.rotations[j];
+                    for (let r = 0; r < BOARD_HEIGHT; r++) {
+                        for (let c = 0; c < BOARD_WIDTH; c++) {
+                            if (canPlaceShape(rotation, r, c)) {
+                                possibleMoves.push({ shape: rotation, r, c, shapeIndex: i });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (possibleMoves.length === 0) return null;
+
+            if (difficulty === 'hard') {
+                for (const move of possibleMoves) {
+                    const tempBoard = board.map(arr => arr.slice());
+                    placeShape(move.shape, move.r, move.c, BOT_ID, tempBoard);
+                    if (!canAnyMoveOnBoard(tempBoard, PLAYER_ID)) {
+                        return move; 
+                    }
+                }
+            }
+            
+            if (difficulty === 'medium' || difficulty === 'hard') {
+                // Find shape size
+                possibleMoves.forEach(move => {
+                    move.size = move.shape.flat().reduce((a, b) => a + b, 0);
+                });
+                // Sort by size descending
+                possibleMoves.sort((a, b) => b.size - a.size);
+                return possibleMoves[0];
+            }
+
+            return possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+        }
+        
+        function endGame(message) {
+            gameStarted = false;
+            playerTurn = false;
+            statusEl.textContent = message;
+            restartBtn.classList.remove('hidden');
+            rotateBtn.disabled = true;
+            clearPreview();
+
+            // Update score
+            if (message.includes("You win")) {
+                playerScore++;
+            } else if (message.includes("Bot wins")) {
+                botScore++;
+            }
+            updateScoreDisplay();
+        }
+
+        // Start the application
+        init();
+    </script>
+</body>
+</html>
