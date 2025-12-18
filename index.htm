@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Board Fill - Creative Edition</title>
+    <title>Board Fill</title>
     <style>
         :root {
             --board-size: 5;
@@ -108,8 +108,6 @@
 
         button:hover {
             background-color: #334155;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
         }
         
         button.active, button:focus {
@@ -514,8 +512,8 @@
             <option value="medium">Medium Bot</option>
             <option value="hard">Hard Bot</option>
         </select>
-        <button id="restartBtn" class="hidden">🔄 New Game</button>
-        <button id="mainMenuBtn">🏠 Main Menu</button>
+        <button id="restartBtn" class="hidden">New Game</button>
+        <button id="mainMenuBtn">Main Menu</button>
     </div>
 
     <div id="status">Select difficulty and start!</div>
@@ -533,8 +531,8 @@
         <div class="modal-content">
             <h2>Main Menu</h2>
             <div class="modal-buttons">
-                <button id="startStandardGameBtn">🚀 Play Standard Game</button>
-                <button id="openCustomGamesBtn">🛠️ Custom Games</button>
+                <button id="startStandardGameBtn">Play Standard Game</button>
+                <button id="openCustomGamesBtn">Custom Games</button>
             </div>
         </div>
     </div>
@@ -547,8 +545,8 @@
                 <!-- Items will be populated by JS -->
             </div>
             <div class="modal-buttons">
-                <button id="openCreatorBtn">➕ Create New Custom Game</button>
-                <button class="modal-back-btn" data-target="mainMenuModal">⬅️ Back to Main Menu</button>
+                <button id="openCreatorBtn">Create New Custom Game</button>
+                <button class="modal-back-btn" data-target="mainMenuModal">Back to Main Menu</button>
             </div>
         </div>
     </div>
@@ -575,8 +573,8 @@
             <div id="current-shapes-list"></div>
             
             <div class="modal-buttons">
-                <button id="saveGameBtn">✅ Save and Close</button>
-                <button class="modal-back-btn" data-target="customGamesModal">⬅️ Back (Discard)</button>
+                <button id="saveGameBtn">Save and Close</button>
+                <button class="modal-back-btn" data-target="customGamesModal">Back (Discard)</button>
             </div>
         </div>
     </div>
